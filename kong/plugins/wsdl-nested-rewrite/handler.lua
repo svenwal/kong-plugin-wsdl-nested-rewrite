@@ -140,33 +140,29 @@ function rewrite_wsdl(plugin_conf, body)
 end
 
 function update_children (conf, entries)
-	kong.log.debug("DUMP entries " .. dump(entries))
-	for _, entry in ipairs(entries) do
-	  kong.log.debug("wsdl Pinging " .. entry.kongSchemaLocation)
-	end
- return true
-  --      local http = require "resty.http"
-  --      local httpc = http.new()
---	kong.log.debug("Pinging " .. conf.kongSchemaLocation)
---
- --       --local res, err = httpc:request_uri(conf.kongSchemaLocation, {
-  --      local res, err = httpc:request_uri("http://localhost:8000/empty", {
-   --       method = "GET",
-    --        headers = {
-     --         ["accept-encoding"] = "gzip;q=0",
-      --      },
-       --     query = {
-        --    },
---            keepalive_timeout = 60,
-   --         keepalive_pool = 10
- --         })
-  --      if err then
- --         return nil, err
---        end
-  --      if not res.status == 200 then
-   --       return nil, "Invalid wsdl data status code received: " .. res.status
-    --    end
---	return true
+  local http = require "resty.http"
+  for _, entry in ipairs(entries) do
+    kong.log.debug("wsdl Pinging " .. entry.kongSchemaLocation)
+    local httpc = http.new()
+    --local res, err = httpc:request_uri(conf.kongSchemaLocation, {
+    local res, err = httpc:request_uri("http://localhost:8000/empty", {
+      method = "GET",
+      headers = {
+        ["accept-encoding"] = "gzip;q=0",
+      },
+      query = {
+      },
+      keepalive_timeout = 60,
+      keepalive_pool = 10
+    })
+    if err then
+      return nil, err
+    end
+    if not res.status == 200 then
+      return nil, "Invalid wsdl data status code received: " .. res.status
+    end
+  end
+  return true
 end
 
 function generate_cache_key(path)
