@@ -15,10 +15,9 @@ local schema = {
               default = 3600,
               required = true
             }},
-	  { only_listen_on_wsdl_query = {
-              type = "boolean",
-	      required = true,
-	      default = false
+	  { external_host_name_url = {
+              type = "string",
+	      required = false,
             }},
         },
         entity_checks = {

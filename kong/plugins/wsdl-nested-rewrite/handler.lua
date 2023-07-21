@@ -74,6 +74,11 @@ function rewrite_wsdl(plugin_conf, body)
       -- Find all <xsd:import> elements using the xpath expression
     local xsd_import_elements = soapMessage:search("//xsd:import", namespaces)
 
+    local externalHostNameUrl = plugin_conf.external_host_name_url
+    if externalHostNameUrl == nil then
+      externalHostNameUrl = kong.request.get_scheme() .. "://" .. kong.request.get_host() .. ":" .. kong.request.get_port()
+    end
+
     -- Loop over each <xsd:import> element
     for _, xsd_import_element in ipairs(xsd_import_elements) do
         local namespace = xsd_import_element:get_attribute("namespace")
@@ -84,12 +89,22 @@ function rewrite_wsdl(plugin_conf, body)
 	local searchString = "/namespace/"
         local startIndex, endIndex = namespace:find(searchString)
         local namespace_name = namespace:sub(endIndex + 1)
-	local kongSchemaLocation = kong.request.get_scheme() .. "://" .. kong.request.get_host() .. ":" .. kong.request.get_port() .. kong.request.get_raw_path() .. "/namespace/" .. namespace_name
+	local kongSchemaLocation = externalHostNameUrl .. kong.request.get_raw_path() .. "/namespace/" .. namespace_name
 	xsd_import_element:set_attribute("schemaLocation", kongSchemaLocation)
 	xsd_import_element:set_attribute("origSchemaLocation", schemaLocation )
        
-	local ok, err = ngx.timer.at(0, update_children, origSchemaLocation, kongSchemaLocation)
+--	local ok, err = ngx.timer.at(0, update_children, origSchemaLocation, kongSchemaLocation)
 
+    end
+
+    local xsd_soapbind_elements = soapMessage:search("//soapbind:address", namespaces)
+    -- Loop over each <soapbind:address> element
+    for _, xsd_soapbind_element in ipairs(xsd_soapbind_elements) do
+        local location = xsd_soapbind_element:get_attribute("location")
+
+        kong.log.debug("Location: " .. location)
+	xsd_soapbind_element:set_attribute("location", externalHostNameUrl .. kong.request.get_raw_path() )
+       
     end
     return soapMessage:to_xml()
   else
