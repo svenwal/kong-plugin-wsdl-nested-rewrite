@@ -84,36 +84,44 @@ function rewrite_wsdl(plugin_conf, body)
 	local searchString = "/namespace/"
         local startIndex, endIndex = namespace:find(searchString)
         local namespace_name = namespace:sub(endIndex + 1)
-	xsd_import_element:set_attribute("schemaLocation", kong.request.get_scheme() .. "://" .. kong.request.get_host() .. ":" .. kong.request.get_port() .. kong.request.get_raw_path() .. "/namespace/" .. namespace_name)
+	local kongSchemaLocation = kong.request.get_scheme() .. "://" .. kong.request.get_host() .. ":" .. kong.request.get_port() .. kong.request.get_raw_path() .. "/namespace/" .. namespace_name
+	xsd_import_element:set_attribute("schemaLocation", kongSchemaLocation)
 	xsd_import_element:set_attribute("origSchemaLocation", schemaLocation )
+       
+	local ok, err = ngx.timer.at(0, update_children, origSchemaLocation, kongSchemaLocation)
+
     end
     return soapMessage:to_xml()
   else
     return nil, "No body in response from service"
   end
 
---  local http = require "resty.http"
---  local httpc = http.new()
-
---  local res, err = httpc:request_uri("https://example.com", {
---    method = "GET",
---      headers = {
---        ["Update-Cache"] = "true",
---      },
---      query = {
---      },
---      keepalive_timeout = 60,
---      keepalive_pool = 10
---    })
---  if err then
---    return nil, err
---  end
---  if not res.status == 200 then
---    return nil, "Invalid wsdl data status code received: " .. res.status
---  end
 
 end
 
+function update_children (origSchemaLocation, kongSchemaLocation)
+        local http = require "resty.http"
+        local httpc = http.new()
+	kong.log.debug("Pinging " .. kongSchemaLocation)
+
+        local res, err = httpc:request_uri(origSchemaLocation, {
+          method = "GET",
+            headers = {
+              ["accept-encoding"] = "gzip;q=0",
+            },
+            query = {
+            },
+            keepalive_timeout = 60,
+            keepalive_pool = 10
+          })
+        if err then
+          return nil, err
+        end
+        if not res.status == 200 then
+          return nil, "Invalid wsdl data status code received: " .. res.status
+        end
+	kong.log.debug(namespace_name .. ": " .. res.body)
+end
 
 function generate_cache_key(path)
   local resty_md5 = require "resty.md5"
