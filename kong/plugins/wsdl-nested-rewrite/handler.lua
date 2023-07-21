@@ -43,12 +43,14 @@ function plugin:body_filter(plugin_conf)
     return
   end
   local wsdl_cache_key = generate_cache_key(kong.request.get_path())
+  if string.find(kong.request.get_path(), "/namespace/") then
+    kong.log.debug("NAMESPACE CALL: " .. kong.request.get_path())
+    return
+  end
   local rewritten_wsdl, err = kong.cache:get(wsdl_cache_key, opts, rewrite_wsdl, plugin_conf, body)
   if err then
     kong.log.info(err)
     kong.response.exit(500, err)
-  else
-    kong.log.debug(rewritten_wsdl)
   end
   kong.response.set_raw_body(rewritten_wsdl)
 end
@@ -78,7 +80,8 @@ function rewrite_wsdl(plugin_conf, body)
     if externalHostNameUrl == nil then
       externalHostNameUrl = kong.request.get_scheme() .. "://" .. kong.request.get_host() .. ":" .. kong.request.get_port()
     end
-
+    local queue = require "kong.tools.queue"
+    
     -- Loop over each <xsd:import> element
     for _, xsd_import_element in ipairs(xsd_import_elements) do
         local namespace = xsd_import_element:get_attribute("namespace")
@@ -93,8 +96,30 @@ function rewrite_wsdl(plugin_conf, body)
 	xsd_import_element:set_attribute("schemaLocation", kongSchemaLocation)
 	xsd_import_element:set_attribute("origSchemaLocation", schemaLocation )
        
---	local ok, err = ngx.timer.at(0, update_children, origSchemaLocation, kongSchemaLocation)
+	local handler_conf =
+          {
+            kongSchemaLocation = kongSchemaLocation,
+	    origSchemaLocation = schemaLocation
+          }
 
+	local queue_conf =
+          {
+            name = "schemaUpdater",
+            log_tag = "wsdl-nested-rewrite-queue",
+            max_batch_size = 10,
+            max_entries = 10000,
+            max_bytes = nil,
+	    max_coalescing_delay = 1,
+            initial_retry_delay = 0.01,
+            max_retry_time = 60,
+            max_retry_delay = 60,
+          }
+
+          kong.log.debug("Adding " .. kongSchemaLocation .. " to queue")
+	  local ok, err = queue.enqueue(queue_conf, update_children, plugin_conf, handler_conf)
+	    if not ok then
+    kong.log.err("Failed to enqueue log entry to log server: ", err)
+  end
     end
 
     local xsd_soapbind_elements = soapMessage:search("//soapbind:address", namespaces)
@@ -114,28 +139,34 @@ function rewrite_wsdl(plugin_conf, body)
 
 end
 
-function update_children (origSchemaLocation, kongSchemaLocation)
-        local http = require "resty.http"
-        local httpc = http.new()
-	kong.log.debug("Pinging " .. kongSchemaLocation)
-
-        local res, err = httpc:request_uri(origSchemaLocation, {
-          method = "GET",
-            headers = {
-              ["accept-encoding"] = "gzip;q=0",
-            },
-            query = {
-            },
-            keepalive_timeout = 60,
-            keepalive_pool = 10
-          })
-        if err then
-          return nil, err
-        end
-        if not res.status == 200 then
-          return nil, "Invalid wsdl data status code received: " .. res.status
-        end
-	kong.log.debug(namespace_name .. ": " .. res.body)
+function update_children (conf, entries)
+	kong.log.debug("DUMP entries " .. dump(entries))
+	for _, entry in ipairs(entries) do
+	  kong.log.debug("wsdl Pinging " .. entry.kongSchemaLocation)
+	end
+ return true
+  --      local http = require "resty.http"
+  --      local httpc = http.new()
+--	kong.log.debug("Pinging " .. conf.kongSchemaLocation)
+--
+ --       --local res, err = httpc:request_uri(conf.kongSchemaLocation, {
+  --      local res, err = httpc:request_uri("http://localhost:8000/empty", {
+   --       method = "GET",
+    --        headers = {
+     --         ["accept-encoding"] = "gzip;q=0",
+      --      },
+       --     query = {
+        --    },
+--            keepalive_timeout = 60,
+   --         keepalive_pool = 10
+ --         })
+  --      if err then
+ --         return nil, err
+--        end
+  --      if not res.status == 200 then
+   --       return nil, "Invalid wsdl data status code received: " .. res.status
+    --    end
+--	return true
 end
 
 function generate_cache_key(path)
