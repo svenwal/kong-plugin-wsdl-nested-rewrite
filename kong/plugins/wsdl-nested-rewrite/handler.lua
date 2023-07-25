@@ -24,13 +24,8 @@ function plugin:access(plugin_conf)
 
     if arg then
         kong.log.info("arg: " .. arg)
-        local encOrigPath = base64.decode(arg)
+        local newPath = base64.decode(arg)
 
-        -- local cipher = aes.cipher(256)
-        local aes_256_cbc_md5 = aes:new("MyBestSecret")
-        local newPath = aes_256_cbc_md5:decrypt(encOrigPath)
-
-        -- kong.service.request.set_path("/852f8e7e-6b21-468b-8214-af807e2a71cc" .. newPath)
         kong.service.request.set_path(newPath)
         kong.service.request.set_raw_query("")
         kong.log.info("newPath: " .. newPath)
@@ -135,11 +130,8 @@ function rewrite_wsdl(plugin_conf, body)
             local namespace_name = namespace:sub(endIndex + 1)
             local ServiceStart = schemaLocation:find("/service")
             local namespacePath = schemaLocation:sub(ServiceStart)
-            
-            -- local cipher = aes.cipher(256)
-            local aes_256_cbc_md5 = aes:new("MyBestSecret")
-            local encOrigLocation = aes_256_cbc_md5:encrypt(namespacePath)
-            local baseOrigLocation = base64.encode(encOrigLocation)
+
+            local baseOrigLocation = base64.encode(namespacePath)
             kong.log("encrypted " ..  baseOrigLocation)
 
             if string.find(kong.request.get_path(), "/namespace/") then
