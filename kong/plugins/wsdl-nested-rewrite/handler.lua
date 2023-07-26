@@ -145,6 +145,16 @@ function rewrite_wsdl(plugin_conf, body)
             else
                 kongSchemaLocation = externalHostNameUrl .. kong.request.get_raw_path() .. "/namespace/" ..
                                                namespace_name .. "?orig=" .. baseOrigLocation
+ 
+         --   local xsd_soapbind_elements = soapMessage:search("//soapbind:address", namespaces)
+        --   -- Loop over each <soapbind:address> element
+        --   for _, xsd_soapbind_element in ipairs(xsd_soapbind_elements) do
+        --       local location = xsd_soapbind_element:get_attribute("location")
+
+        --       kong.log.debug("Location: " .. location)
+        -- xsd_soapbind_element:set_attribute("location", externalHostNameUrl .. kong.request.get_raw_path() )
+
+        --   end
             end
             -- local kongSchemaLocation = externalHostNameUrl .. kong.request.get_raw_path() .. "/namespace/" .. namespace_name
             xsd_import_element:set_attribute("schemaLocation", kongSchemaLocation)
@@ -174,15 +184,7 @@ function rewrite_wsdl(plugin_conf, body)
             end
         end
 
-        --   local xsd_soapbind_elements = soapMessage:search("//soapbind:address", namespaces)
-        --   -- Loop over each <soapbind:address> element
-        --   for _, xsd_soapbind_element in ipairs(xsd_soapbind_elements) do
-        --       local location = xsd_soapbind_element:get_attribute("location")
 
-        --       kong.log.debug("Location: " .. location)
-        -- xsd_soapbind_element:set_attribute("location", externalHostNameUrl .. kong.request.get_raw_path() )
-
-        --   end
         return soapMessage:to_xml()
     else
         return nil, "No body in response from service"
