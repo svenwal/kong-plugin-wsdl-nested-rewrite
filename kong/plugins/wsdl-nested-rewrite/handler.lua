@@ -8,24 +8,13 @@ local plugin = {
 }
 
 function plugin:access(plugin_conf)
-    --  local wsdl_cache_key = generate_cache_key(kong.request.get_path())
-    --  local rewritten_wsdl, err = kong.cache:get(wsdl_cache_key, opts, check_cache, plugin_conf)
-    --  if err then
-    --    kong.log.info(err)
-    --    kong.response.exit(500, err)
-    --  end
-    --  if rewritten_wsdl ~= nil then
-    --    kong.response.exit(200, rewritten_wsdl)
-    --  end
-    --  kong.cache:invalidate(wsdl_cache_key)
+
     local originalReqPath = kong.request.get_path()
-    kong.log("originalPath: " .. originalReqPath)
     local arg = kong.request.get_query_arg("orig")
 
     if arg then
-        kong.log.info("arg: " .. arg)
         local newPath = base64.decode(arg)
-
+        -- original endpoint is base64 encoded in the URL
         kong.service.request.set_path(newPath)
         kong.service.request.set_raw_query("")
         kong.log.info("newPath: " .. newPath)
@@ -64,14 +53,10 @@ function plugin:body_filter(plugin_conf)
     end
     kong.log("Start body work")
     local wsdl_cache_key = generate_cache_key(kong.request.get_path())
-    -- if string.find(kong.request.get_path(), "/namespace/") then
-    --   kong.log("NAMESPACE CALL: " .. kong.request.get_path())
-    --   return
-    -- end
+
     local rewritten_wsdl, err = kong.cache:get(wsdl_cache_key, opts, rewrite_wsdl, plugin_conf, body)
     if err then
         kong.log.info(err)
-        -- kong.response.exit(500, err)
     end
     kong.response.set_raw_body(rewritten_wsdl)
 end
@@ -130,9 +115,9 @@ function rewrite_wsdl(plugin_conf, body)
             local namespace_name = namespace:sub(endIndex + 1)
             local ServiceStart = schemaLocation:find("/service")
             local namespacePath = schemaLocation:sub(ServiceStart)
-
+            -- store the original endpoint in a query parameter
             local baseOrigLocation = base64.encode(namespacePath)
-            kong.log("encrypted " ..  baseOrigLocation)
+            kong.log("encrypted " .. baseOrigLocation)
 
             if string.find(kong.request.get_path(), "/namespace/") then
                 local rawPath = kong.request.get_raw_path()
@@ -140,21 +125,21 @@ function rewrite_wsdl(plugin_conf, body)
                 local newNamespacePath = rawPath:sub(0, endIndex)
 
                 kongSchemaLocation = externalHostNameUrl .. newNamespacePath .. namespace_name .. "?orig=" ..
-                                               baseOrigLocation
+                                         baseOrigLocation
                 kong.log("kongSchemaLocation: " .. kongSchemaLocation)
             else
                 kongSchemaLocation = externalHostNameUrl .. kong.request.get_raw_path() .. "/namespace/" ..
-                                               namespace_name .. "?orig=" .. baseOrigLocation
- 
-         --   local xsd_soapbind_elements = soapMessage:search("//soapbind:address", namespaces)
-        --   -- Loop over each <soapbind:address> element
-        --   for _, xsd_soapbind_element in ipairs(xsd_soapbind_elements) do
-        --       local location = xsd_soapbind_element:get_attribute("location")
+                                         namespace_name .. "?orig=" .. baseOrigLocation
 
-        --       kong.log.debug("Location: " .. location)
-        -- xsd_soapbind_element:set_attribute("location", externalHostNameUrl .. kong.request.get_raw_path() )
+                local xsd_soapbind_elements = soapMessage:search("//soapbind:address", namespaces)
+                -- Loop over each <soapbind:address> element
+                for _, xsd_soapbind_element in ipairs(xsd_soapbind_elements) do
+                    local location = xsd_soapbind_element:get_attribute("location")
 
-        --   end
+                    kong.log.debug("Location: " .. location)
+                    xsd_soapbind_element:set_attribute("location", externalHostNameUrl .. kong.request.get_raw_path())
+
+                end
             end
             -- local kongSchemaLocation = externalHostNameUrl .. kong.request.get_raw_path() .. "/namespace/" .. namespace_name
             xsd_import_element:set_attribute("schemaLocation", kongSchemaLocation)
@@ -183,7 +168,6 @@ function rewrite_wsdl(plugin_conf, body)
                 kong.log.err("Failed to enqueue log entry to log server: ", err)
             end
         end
-
 
         return soapMessage:to_xml()
     else
