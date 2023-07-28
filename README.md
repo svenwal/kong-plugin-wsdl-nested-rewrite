@@ -9,3 +9,8 @@ This Kong 🦍 plugin
 |FORM PARAMETER|DEFAULT|DESCRIPTION|
 |:----|:------|:------|
 |config.cache_ttl|3600|Time in seconds we cache the transformed WSDL exchange|
+
+## Additional libraries needed
+
+sudo /usr/local/bin/luarocks install base64
+
