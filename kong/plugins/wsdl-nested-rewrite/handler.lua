@@ -1,4 +1,3 @@
-local base64 = require 'base64'
 local aes = require 'resty.aes'
 local str = require "resty.string"
 
@@ -13,7 +12,7 @@ function plugin:access(plugin_conf)
     local arg = kong.request.get_query_arg("orig")
 
     if arg then
-        local newPath = base64.decode(arg)
+        local newPath = ngx.decode_base64(arg)
         -- original endpoint is base64 encoded in the URL
         kong.service.request.set_path(newPath)
         kong.service.request.set_raw_query("")
@@ -116,7 +115,7 @@ function rewrite_wsdl(plugin_conf, body)
             local ServiceStart = schemaLocation:find("/service")
             local namespacePath = schemaLocation:sub(ServiceStart)
             -- store the original endpoint in a query parameter
-            local baseOrigLocation = base64.encode(namespacePath)
+            local baseOrigLocation = ngx.encode_base64(namespacePath)
             kong.log("encrypted " .. baseOrigLocation)
 
             if string.find(kong.request.get_path(), "/namespace/") then
